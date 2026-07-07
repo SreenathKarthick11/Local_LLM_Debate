@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-debate"
+version = "1.0.0"
+description = "Local LLM multi-agent debate with a live terminal UI"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph",
+    "langchain-ollama",
+    "langchain-chroma",
+    "langchain-huggingface",
+    "langchain-community",
+    "langchain-text-splitters",
+    "rich",
+    "pydantic",
+    "ddgs",
+    "pypdf",
+]
+
+[project.scripts]
+llm-debate = "main:run"
+
+[tool.setuptools]
+py-modules = ["main", "graph", "state", "models", "llm"]
+
+[tool.setuptools.packages.find]
+include = ["ui*", "agents*", "tools*", "rag*"]

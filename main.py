@@ -197,9 +197,13 @@ def main():
         shutil.rmtree("vector_db", ignore_errors=True)
 
 
-if __name__ == "__main__":
+def run():
     try:
         main()
     except KeyboardInterrupt:
         console.clear()
         console.print("[bold green]Goodbye![/bold green]")
+
+
+if __name__ == "__main__":
+    run()

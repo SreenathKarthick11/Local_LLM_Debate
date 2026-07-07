@@ -15,9 +15,9 @@ echo "==> Creating virtual environment..."
 python3 -m venv .venv
 source .venv/bin/activate
 
-echo "==> Installing Python dependencies..."
+echo "==> Installing the app..."
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -e .
 
 echo "==> Done. To run the app:"
 echo "    source .venv/bin/activate"

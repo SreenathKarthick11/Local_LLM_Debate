@@ -18,8 +18,8 @@ cd Local_LLM_Debate
 
 ## Run
 ```bash
-source .venv/bin/activate   # Windows: .\.venv\Scripts\Activate.ps1
-python main.py
+source .venv/bin/activate
+llm-debate
 ```
 
 - Optionally upload a PDF for retrieval-augmented answers when prompted.
