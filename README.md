@@ -11,7 +11,7 @@ Two locally-run LLMs debate a question, critique each other, revise, and a judge
 
 **macOS/Linux**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/SreenathKarthick11/Local_LLM_Debate.git
 cd Local_LLM_Debate
 ./install.sh
 ```
