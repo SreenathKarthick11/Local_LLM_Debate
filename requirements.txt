@@ -1,0 +1,10 @@
+langgraph
+langchain-ollama
+langchain-chroma
+langchain-huggingface
+langchain-community
+langchain-text-splitters
+rich
+pydantic
+ddgs
+pypdf
