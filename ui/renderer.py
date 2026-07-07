@@ -77,13 +77,31 @@ class Renderer:
                 self.scroll.states["agent_b"],
             )
         )
-        self.layout["critique_a"].update(render_critique_a(self.state))
-        self.layout["critique_b"].update(render_critique_b(self.state))
-        self.layout["judge"].update(render_judge(self.state))
+        self.layout["critique_a"].update(
+            render_critique_a(
+                self.state, console,
+                viewport_size(regions["critique_a"]),
+                self.scroll.states["critique_a"],
+            )
+        )
+        self.layout["critique_b"].update(
+            render_critique_b(
+                self.state, console,
+                viewport_size(regions["critique_b"]),
+                self.scroll.states["critique_b"],
+            )
+        )
+        self.layout["judge"].update(
+            render_judge(
+                self.state, console,
+                viewport_size(regions["judge"]),
+                self.scroll.states["judge"],
+            )
+        )
         self.layout["runtime"].update(render_runtime(self.state))
 
         self.layout["footer"].update(
-            Text("Click a panel to focus • ↓/j ↑/k or wheel to scroll • Ctrl+C to exit",
+            Text("Click a panel to focus • ↓/↑ or wheel to scroll • Ctrl+C to exit",
                  justify="center", style="dim")
         )
 

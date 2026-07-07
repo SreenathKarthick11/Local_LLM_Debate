@@ -6,7 +6,7 @@ from rich.segment import Segment
 from rich.cells import cell_len
 from rich.measure import Measurement
 
-SCROLLABLE_PANELS = ("router", "resources", "agent_a", "agent_b")
+SCROLLABLE_PANELS = ("router", "resources", "agent_a", "agent_b", "critique_a", "critique_b", "judge")
 
 
 @dataclass

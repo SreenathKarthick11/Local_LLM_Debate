@@ -16,10 +16,19 @@ def compute_regions(width: int, height: int):
 
     ratio_total = TOP_RATIO + MIDDLE_RATIO + BOTTOM_RATIO
     top_h = body_h * TOP_RATIO // ratio_total
+    middle_h = body_h * MIDDLE_RATIO // ratio_total
+    bottom_h = body_h - top_h - middle_h  # remainder, matches Layout's own rounding behavior
 
     top_y0 = HEADER_H
     top_y1 = top_y0 + top_h
 
+    middle_y0 = top_y1
+    middle_y1 = middle_y0 + middle_h
+
+    bottom_y0 = middle_y1
+    bottom_y1 = bottom_y0 + bottom_h
+
+    # --- top row: router / resources / agent_a / agent_b ---
     col_total = ROUTER_RATIO + RESOURCES_RATIO + DEBATE_RATIO
     router_w = width * ROUTER_RATIO // col_total
     resources_w = width * RESOURCES_RATIO // col_total
@@ -31,11 +40,23 @@ def compute_regions(width: int, height: int):
     agent_a_x0, agent_a_x1 = debate_x0, debate_x0 + debate_w // 2
     agent_b_x0, agent_b_x1 = agent_a_x1, width
 
+    # --- middle row: critique_a / critique_b (even split) ---
+    critique_a_x0, critique_a_x1 = 0, width // 2
+    critique_b_x0, critique_b_x1 = width // 2, width
+
+    # --- bottom row: judge / runtime (even split) ---
+    judge_x0, judge_x1 = 0, width // 2
+    runtime_x0, runtime_x1 = width // 2, width
+
     return {
         "router": (router_x0, top_y0, router_x1, top_y1),
         "resources": (resources_x0, top_y0, resources_x1, top_y1),
         "agent_a": (agent_a_x0, top_y0, agent_a_x1, top_y1),
         "agent_b": (agent_b_x0, top_y0, agent_b_x1, top_y1),
+        "critique_a": (critique_a_x0, middle_y0, critique_a_x1, middle_y1),
+        "critique_b": (critique_b_x0, middle_y0, critique_b_x1, middle_y1),
+        "judge": (judge_x0, bottom_y0, judge_x1, bottom_y1),
+        "runtime": (runtime_x0, bottom_y0, runtime_x1, bottom_y1),
     }
 
 
