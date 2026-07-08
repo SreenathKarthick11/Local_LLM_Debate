@@ -5,6 +5,15 @@ Two locally-run LLMs independently answer a question, critique each other's answ
 Everything runs **locally** via [Ollama](https://ollama.com) — no API keys, no cloud calls for the LLM itself (web search is the one exception, used only when the router decides a question needs current information).
 
 ---
+## UI
+
+### Intial terminal
+![](assets/entry.png)
+
+### Terminal Debate 
+![](assets/end.png)
+
+---
 
 ## Features
 
