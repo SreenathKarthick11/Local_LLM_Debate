@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local LLM Debate — two local models argue it out</title>
+<meta name="description" content="Two locally-run LLMs debate a question, critique each other, revise, and a judge picks a winner — with a live terminal UI. No API keys, no cloud calls.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #14171b;
+    --surface-2: #191d22;
+    --border: #262b31;
+    --border-soft: #1d2126;
+    --text: #e6e8eb;
+    --muted: #8b93a1;
+    --faint: #565e6b;
+    --agent-a: #5fafff;
+    --agent-b: #ff5fd7;
+    --amber: #ffd75f;
+    --green: #00ff87;
+    --red: #ff5f5f;
+
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+
+    --maxw: 980px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+
+  ::selection { background: var(--agent-a); color: #05070a; }
+
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  code, .mono { font-family: var(--mono); }
+
+  /* ---------- topbar ---------- */
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(13, 15, 18, 0.9);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .topbar-inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  .brand-dot { color: var(--agent-a); }
+  .brand-dot2 { color: var(--agent-b); }
+
+  nav.links {
+    display: flex;
+    gap: 28px;
+    font-size: 13px;
+  }
+
+  nav.links a {
+    text-decoration: none;
+    color: var(--muted);
+    font-weight: 500;
+    transition: color 0.15s ease;
+  }
+
+  nav.links a:hover { color: var(--text); }
+
+  .gh-btn {
+    border: 1px solid var(--border);
+    padding: 7px 14px;
+    font-size: 13px;
+    font-family: var(--mono);
+    text-decoration: none;
+    color: var(--text);
+    border-radius: 5px;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .gh-btn:hover { border-color: var(--agent-a); color: var(--agent-a); }
+
+  @media (max-width: 720px) {
+    nav.links { display: none; }
+  }
+
+  /* ---------- eyebrow / labels ---------- */
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .eyebrow::before {
+    content: '';
+    width: 16px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    padding: 96px 0 64px;
+  }
+
+  .hero h1 {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: clamp(28px, 5vw, 46px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 22px;
+    max-width: 760px;
+  }
+
+  .hero h1 .a { color: var(--agent-a); }
+  .hero h1 .b { color: var(--agent-b); }
+
+  .hero p.lead {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 620px;
+    margin: 0 0 32px;
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 56px;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 11px 18px;
+    border-radius: 5px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--text);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .btn-secondary {
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--muted); }
+
+  /* ---------- terminal chrome (signature element) ---------- */
+
+  .term {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+  }
+
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .term-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .term-dot.r { background: #ff5f56; }
+  .term-dot.y { background: #ffbd2e; }
+  .term-dot.g { background: #27c93f; }
+
+  .term-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    margin-left: 6px;
+  }
+
+  .term-body {
+    padding: 0;
+  }
+
+  .term-body img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .term-body.pad {
+    padding: 18px 20px;
+  }
+
+  .term-body pre {
+    margin: 0;
+    padding: 18px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--text);
+  }
+
+  .term-body .prompt { color: var(--green); }
+  .term-body .comment { color: var(--faint); }
+  .term-body .arg { color: var(--amber); }
+
+  /* ---------- sections ---------- */
+
+  section {
+    padding: 64px 0;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  section h2 {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+
+  section > .wrap > p.section-intro {
+    color: var(--muted);
+    max-width: 680px;
+    margin: 0 0 36px;
+  }
+
+  /* ---------- strip stats ---------- */
+
+  .strip {
+    padding: 40px 0;
+    border-top: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .strip .wrap {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .strip-item {
+    font-family: var(--mono);
+  }
+
+  .strip-item .label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 8px;
+  }
+
+  .strip-item .value {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  @media (max-width: 640px) {
+    .strip .wrap { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- feature grid (mirrors the app's own panel names) ---------- */
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border-soft);
+    border: 1px solid var(--border-soft);
+  }
+
+  .card {
+    background: var(--bg);
+    padding: 26px 24px;
+  }
+
+  .card .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: inline-block;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .card h3 {
+    font-size: 16px;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+
+  .card p {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .tag.router { color: var(--amber); border-color: #4a3f1f; }
+  .tag.res { color: var(--green); border-color: #1f4a34; }
+  .tag.a { color: var(--agent-a); border-color: #1f3a4a; }
+  .tag.b { color: var(--agent-b); border-color: #4a1f3d; }
+  .tag.judge { color: var(--red); border-color: #4a1f1f; }
+  .tag.rt { color: var(--muted); border-color: var(--border); }
+  
+
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- diagrams ---------- */
+
+  .diagram-block {
+    margin-bottom: 48px;
+  }
+
+  .diagram-block:last-child { margin-bottom: 0; }
+
+  .diagram-block h3 {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text);
+    margin: 0 0 6px;
+  }
+
+  .diagram-block p {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 16px;
+    max-width: 640px;
+  }
+
+  .mermaid-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    overflow-x: auto;
+  }
+
+  /* ---------- ordered list (stopping conditions — genuine sequence) ---------- */
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: step;
+  }
+
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--border-soft);
+  }
+  .steps li:first-child { border-top: none; }
+
+  .steps li::before {
+    content: counter(step);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--bg);
+    background: var(--muted);
+    width: 22px;
+    height: 22px;
+    flex: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .steps li p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .steps li code { color: var(--text); }
+
+  /* ---------- tables ---------- */
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 0 0 8px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 500;
+  }
+
+  td { color: var(--muted); }
+  td code { color: var(--text); }
+
+  /* ---------- setup two-col ---------- */
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  .req-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .req-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-soft);
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+  .req-list li:first-child { border-top: none; }
+
+  .req-list li::before {
+    content: '›';
+    color: var(--agent-a);
+    font-family: var(--mono);
+  }
+
+  .req-list code { color: var(--text); }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ---------- using the app ---------- */
+
+  .usage-steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 40px;
+  }
+
+  .usage-steps .steps { margin-bottom: 0; }
+
+  /* ---------- notes ---------- */
+
+  .note-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--agent-a);
+    border-radius: 0 8px 8px 0;
+    padding: 20px 22px;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+
+  .note-block p { margin: 0 0 10px; }
+  .note-block p:last-child { margin-bottom: 0; }
+  .note-block code { color: var(--text); }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    padding: 48px 0 64px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  footer .wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  footer .fmono {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--faint);
+  }
+
+  footer a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  footer a:hover { color: var(--text); }
+
+  .foot-links {
+    display: flex;
+    gap: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a href="#top" class="brand"><span class="brand-dot">●</span><span class="brand-dot2">●</span>&nbsp;local-llm-debate</a>
+    <nav class="links">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#setup">Setup</a>
+      <a href="#usage">Usage</a>
+    </nav>
+    <a class="gh-btn" href="https://github.com/SreenathKarthick11/Local_LLM_Debate" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</div>
+
+<div id="top"></div>
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">local · multi-agent · zero api keys</div>
+    <h1>Two local LLMs walk into a debate.<br>Only one leaves with the <span class="a">answer</span>.</h1>
+    <p class="lead">
+      Agent A and Agent B independently answer your question, critique each other,
+      revise, and repeat until they converge or run out of rounds — then an impartial
+      judge picks a winner. A live terminal UI shows every step as it happens.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#setup">Get set up →</a>
+      <a class="btn btn-secondary" href="https://github.com/SreenathKarthick11/Local_LLM_Debate" target="_blank" rel="noopener">View source</a>
+    </div>
+
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+        <span class="term-title">~/repos/Local_LLM_Debate — llm-debate</span>
+      </div>
+      <div class="term-body">
+        <img src="assets/entry.png" alt="Local LLM Debate — initial terminal prompt asking for a question">
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= STRIP ================= -->
+<div class="strip">
+  <div class="wrap">
+    <div class="strip-item">
+      <div class="label">Inference</div>
+      <div class="value">100% local via Ollama</div>
+    </div>
+    <div class="strip-item">
+      <div class="label">Models</div>
+      <div class="value">qwen2.5:3b + qwen2.5:1.5b</div>
+    </div>
+    <div class="strip-item">
+      <div class="label">Cloud calls</div>
+      <div class="value">None, except optional web search</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FEATURES ================= -->
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">what it does</div>
+    <h2>Every panel you see is a real decision</h2>
+    <p class="section-intro">
+      The terminal UI isn't decorative — each region reflects one thing the engine
+      is actually doing right now, streamed over an event bus as the debate runs.
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <span class="tag router">router</span>
+        <h3>Resource routing</h3>
+        <p>An LLM decides per-question whether to use web search, local documents, a Python tool, or nothing — and shows its confidence and reasoning.</p>
+      </div>
+      <div class="card">
+        <span class="tag res">resources</span>
+        <h3>Retrieval, visible</h3>
+        <p>Whatever gets pulled in — search snippets, PDF chunks, tool output — is shown verbatim, not hidden inside the prompt.</p>
+      </div>
+      <div class="card">
+        <span class="tag a">agent a / b</span>
+        <h3>Independent debaters</h3>
+        <p>Two agents answer separately, each with their own resources, so neither can just copy the other's reasoning.</p>
+      </div>
+      <div class="card">
+        <span class="tag b">critique</span>
+        <h3>Cross-examination</h3>
+        <p>Each agent critiques the other's answer for weaknesses and hallucination risk before either gets to revise.</p>
+      </div>
+      <div class="card">
+        <span class="tag judge">judge</span>
+        <h3>Impartial verdict</h3>
+        <p>A separate judge call picks a winner with reasoning and a confidence score — it never sees which agent is which.</p>
+      </div>
+      <div class="card">
+        <span class="tag rt">runtime</span>
+        <h3>Convergence, not a timer</h3>
+        <p>Rounds stop when answers converge or hallucination risk drops low — not just after a fixed count.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section id="architecture">
+  <div class="wrap">
+    <div class="eyebrow">under the hood</div>
+    <h2>Engine and UI never import each other</h2>
+    <p class="section-intro">
+      The debate engine only knows how to <code>emit()</code> events onto a thread-safe
+      queue. The terminal UI only knows how to consume them. Swap the UI for a web
+      frontend, a logger, or nothing, and the debate logic doesn't change.
+    </p>
+
+    <div class="diagram-block">
+      <h3>Component architecture</h3>
+      <p>LangGraph runs the debate on a background thread; Rich renders the live view on the main thread. They only ever talk through the event queue.</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart LR
+    subgraph Engine["Debate Engine (LangGraph)"]
+        G[graph.py] --> A1[agents/debater_a.py]
+        G --> A2[agents/debater_b.py]
+        G --> J[agents/judge.py]
+        G --> C[agents/debate_controller.py]
+        A1 --> RM[tools/resource_manager.py]
+        A2 --> RM
+        RM --> WEB[tools/search.py]
+        RM --> RAG[rag/retriever.py]
+        RM --> PY[tools/python_tool.py]
+        RM --> ROUTE[tools/resource_router.py]
+    end
+
+    subgraph Bridge["Event Bus"]
+        EM[ui/emitter.py] --> EB[(ui/event_bus.py&lt;br/&gt;thread-safe queue)]
+    end
+
+    subgraph UI["Terminal UI (Rich)"]
+        EB --> R[ui/renderer.py]
+        R --> ST[ui/state.py]
+        R --> L[ui/layout.py]
+        L --> P[ui/panels/*]
+    end
+
+    Engine -. emit&amp;#40;Event&amp;#41; .-> EM
+    A1 -.-> EM
+    A2 -.-> EM
+    J -.-> EM
+    C -.-> EM
+    RM -.-> EM
+
+    Ollama[(Ollama&lt;br/&gt;qwen2.5:3b / 1.5b)] -.-> A1
+    Ollama -.-> A2
+    Ollama -.-> J
+    Ollama -.-> ROUTE
+        </pre>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <h3>The debate graph</h3>
+      <p>Both debaters answer in parallel, critique each other in parallel, revise in parallel, then synchronize before the controller decides: loop again, or hand off to the judge.</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+    START([START]) --> DA[debater_a]
+    START --> DB[debater_b]
+
+    DA --> CB["critique_b&lt;br/&gt;&lt;i&gt;B critiques A's answer&lt;/i&gt;"]
+    DB --> CA["critique_a&lt;br/&gt;&lt;i&gt;A critiques B's answer&lt;/i&gt;"]
+
+    CA --> RA[revise_a]
+    CB --> RB[revise_b]
+
+    RA --> SYNC["sync&lt;br/&gt;&lt;i&gt;barrier&lt;/i&gt;"]
+    RB --> SYNC
+
+    SYNC --> CTRL{controller}
+
+    CTRL -->|continue| RS[round_start] --> CA
+    RS --> CB
+    CTRL -->|judge| JUDGE[judge] --> END([END])
+        </pre>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <h3>One question, end to end</h3>
+      <p>What actually fires, in order, from the moment you press Enter.</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+sequenceDiagram
+    participant U as You
+    participant M as main.py
+    participant G as LangGraph
+    participant R as Resource Router
+    participant O as Ollama
+    participant UI as Terminal UI
+
+    U->>M: type question, press Enter
+    M->>UI: QuestionEvent
+    M->>G: graph.invoke() (background thread)
+
+    par Agent A
+        G->>R: route_resources(question)
+        R->>O: routing decision (web? rag? tool?)
+        R-->>UI: RouterEvent, ResourceEvent
+        G->>O: debater_a prompt
+        O-->>UI: AgentEvent (status=Answered)
+    and Agent B
+        G->>R: route_resources(question)
+        G->>O: debater_b prompt
+        O-->>UI: AgentEvent (status=Answered)
+    end
+
+    par Critique
+        G->>O: critique_a (A critiques B)
+        O-->>UI: CritiqueEvent
+    and
+        G->>O: critique_b (B critiques A)
+        O-->>UI: CritiqueEvent
+    end
+
+    par Revise
+        G->>O: revise_a
+        O-->>UI: AgentEvent (status=Revised)
+    and
+        G->>O: revise_b
+        O-->>UI: AgentEvent (status=Revised)
+    end
+
+    G-->>UI: RuntimeEvent (round, elapsed, stop_reason)
+
+    alt stop condition met
+        G->>O: judge prompt
+        O-->>UI: JudgeEvent (winner, reasoning, confidence)
+    else continue
+        Note over G: loop back to critique phase
+    end
+
+    UI-->>U: live-updating panels throughout
+        </pre>
+      </div>
+    </div>
+
+    <div class="term" style="margin-top: 48px;">
+      <div class="term-bar">
+        <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+        <span class="term-title">debate in progress</span>
+      </div>
+      <div class="term-body">
+        <img src="assets/end.png" alt="Local LLM Debate — live debate with router, resources, agents, critique, and judge panels">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STOPPING CONDITIONS ================= -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">controller</div>
+    <h2>When does it actually stop?</h2>
+    <p class="section-intro">
+      Checked every round, in this order, by <code>tools/stopping.py</code>:
+    </p>
+    <ol class="steps">
+      <li><p>Both agents' latest answers are identical → stop (<code>answers_converged</code>)</p></li>
+      <li><p>Both agents' hallucination risk is ≤ 2 → stop (<code>low_hallucination_risk</code>)</p></li>
+      <li><p><code>round_number >= max_rounds</code> → stop (<code>max_rounds</code>)</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= SETUP ================= -->
+<section id="setup">
+  <div class="wrap">
+    <div class="eyebrow">get started</div>
+    <h2>Setup and run</h2>
+    <p class="section-intro">
+      Everything runs on your machine. The only external dependency is Ollama,
+      which handles model download and inference.
+    </p>
+
+    <div class="two-col">
+      <div class="stack">
+        <div>
+          <h3 style="font-family: var(--mono); font-size: 14px; margin: 0 0 12px; color: var(--text);">Requirements</h3>
+          <ul class="req-list">
+            <li>Python <code>3.10+</code></li>
+            <li><a href="https://ollama.com/download" target="_blank" rel="noopener" style="color: var(--agent-a);">Ollama</a> installed and running</li>
+            <li>A terminal with truecolor support — iTerm2, Windows Terminal, GNOME Terminal, Kitty, Alacritty</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 style="font-family: var(--mono); font-size: 14px; margin: 0 0 12px; color: var(--text);">Setup — macOS / Linux</h3>
+          <div class="term">
+            <div class="term-bar">
+              <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+              <span class="term-title">bash</span>
+            </div>
+            <div class="term-body">
+<pre><span class="prompt">$</span> git clone https://github.com/SreenathKarthick11/Local_LLM_Debate.git
+<span class="prompt">$</span> cd Local_LLM_Debate
+<span class="prompt">$</span> ./install.sh
+<span class="comment"># checks for Ollama, pulls qwen2.5:3b + qwen2.5:1.5b,</span>
+<span class="comment"># creates a venv, installs the package</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div>
+          <h3 style="font-family: var(--mono); font-size: 14px; margin: 0 0 12px; color: var(--text);">Run</h3>
+          <div class="term">
+            <div class="term-bar">
+              <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+              <span class="term-title">bash</span>
+            </div>
+            <div class="term-body">
+<pre><span class="prompt">$</span> source .venv/bin/activate
+<span class="prompt">$</span> llm-debate</pre>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="font-family: var(--mono); font-size: 14px; margin: 0 0 12px; color: var(--text);">Prefer no venv activation?</h3>
+          <div class="term">
+            <div class="term-bar">
+              <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+              <span class="term-title">bash — pipx</span>
+            </div>
+            <div class="term-body">
+<pre><span class="comment"># installs into an isolated env, links the command globally</span>
+<span class="prompt">$</span> pipx install .</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= USAGE ================= -->
+<section id="usage">
+  <div class="wrap">
+    <div class="eyebrow">using the app</div>
+    <h2>From launch to verdict</h2>
+
+    <div class="usage-steps">
+      <ol class="steps">
+        <li><p><strong style="color: var(--text);">Upload a PDF — optional.</strong> A picker lists PDFs found in your current folder, <code>~/Downloads</code>, <code>~/Documents</code>, and <code>~/Desktop</code>. Type a number, part of a filename, or a full path — or press Enter to skip.</p></li>
+        <li><p><strong style="color: var(--text);">Type your question</strong>, press Enter.</p></li>
+        <li><p><strong style="color: var(--text);">Watch the debate unfold live</strong> across the router, resources, both agents, critiques, judge, and runtime panels.</p></li>
+        <li><p><strong style="color: var(--text);">Navigate freely.</strong> Click a scrollable panel to focus it, then <code>j</code>/<code>↓</code> and <code>k</code>/<code>↑</code> or the mouse wheel to scroll. <code>Ctrl+C</code> exits and cleans up at any point.</p></li>
+      </ol>
+    </div>
+
+    <h3 style="font-family: var(--mono); font-size: 14px; margin: 8px 0 12px; color: var(--text);">Panels at a glance</h3>
+    <table>
+      <thead><tr><th>Panel</th><th>Shows</th></tr></thead>
+      <tbody>
+        <tr><td><code>Router</code></td><td>which resources were used (web / RAG / tool) and why</td></tr>
+        <tr><td><code>Resources</code></td><td>the actual retrieved web text, document chunks, or tool output</td></tr>
+        <tr><td><code>Agent A / Agent B</code></td><td>each debater's current status, answer, and confidence</td></tr>
+        <tr><td><code>Critique A / Critique B</code></td><td>weaknesses and hallucination risk found in the opponent's answer</td></tr>
+        <tr><td><code>Judge</code></td><td>the winner, confidence, and reasoning</td></tr>
+        <tr><td><code>Runtime</code></td><td>round number, elapsed time, stop reason</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-family: var(--mono); font-size: 14px; margin: 36px 0 12px; color: var(--text);">Explicit routing commands</h3>
+    <p style="color: var(--muted); font-size: 14.5px; margin: 0 0 16px;">Force a specific resource regardless of what the router would choose, by including these anywhere in your question:</p>
+    <table>
+      <thead><tr><th>Command</th><th>Forces</th></tr></thead>
+      <tbody>
+        <tr><td><code>@web</code></td><td>Web search</td></tr>
+        <tr><td><code>@file</code></td><td>Local document retrieval (RAG)</td></tr>
+        <tr><td><code>@python</code></td><td>The Python calculator tool</td></tr>
+      </tbody>
+    </table>
+    <p style="color: var(--faint); font-size: 13.5px; margin-top: 10px;">Example: <code style="color: var(--text);">What's the average of these numbers? @python</code></p>
+  </div>
+</section>
+
+<!-- ================= NOTES ================= -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">good to know</div>
+    <h2>Notes on the local model setup</h2>
+    <div class="note-block">
+      <p><code>qwen2.5:3b</code> handles debating and judging; <code>qwen2.5:1.5b</code> handles the cheaper, more frequent critique and routing calls — this split keeps latency reasonable on consumer hardware.</p>
+      <p>Structured output (<code>AgentResponse</code>, <code>CritiqueResponse</code>, <code>JudgeResponse</code>, <code>ResourceRoute</code>) is enforced via <code>.with_structured_output(...)</code> in <code>llm.py</code>, so parsing is schema-guaranteed rather than regex-scraped from free text.</p>
+      <p>The embedding model (<code>BAAI/bge-small-en-v1.5</code>) downloads automatically on first RAG use — this requires internet access once, even though inference afterward is fully local.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="fmono">local-llm-debate · MIT-style, add your license</div>
+    <div class="foot-links">
+      <a href="https://github.com/SreenathKarthick11/Local_LLM_Debate" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>
+      <a href="#top">Back to top ↑</a>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      background: '#14171b',
+      primaryColor: '#191d22',
+      primaryBorderColor: '#262b31',
+      primaryTextColor: '#e6e8eb',
+      lineColor: '#565e6b',
+      secondaryColor: '#191d22',
+      tertiaryColor: '#191d22',
+      fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+      fontSize: '13px',
+      actorBkg: '#191d22',
+      actorBorder: '#262b31',
+      actorTextColor: '#e6e8eb',
+      signalColor: '#8b93a1',
+      signalTextColor: '#e6e8eb',
+      labelBoxBkgColor: '#191d22',
+      labelBoxBorderColor: '#262b31',
+      labelTextColor: '#e6e8eb',
+      loopTextColor: '#e6e8eb',
+      noteBkgColor: '#191d22',
+      noteBorderColor: '#262b31',
+      noteTextColor: '#8b93a1',
+      clusterBkg: '#0d0f12',
+      clusterBorder: '#262b31',
+      edgeLabelBackground: '#14171b'
+    }
+  });
+</script>
+
+</body>
+</html>
